@@ -25,9 +25,9 @@ safe_config_symlink() {
     fi
     script_dir=$(dirname "$(readlink -f "$0")")
     echo "Creating symlink to $1 in ~/.config/..."
-    dest="~/.config/$1"
+    dest="$HOME/.config/$1"
     dest_dir="$(dirname $dest)"
-    [ "$dest_dir" != "~/.config/" ] && rm -rf "$dest_dir"
+    [ "$dest_dir" != "$HOME/.config/" ] && rm -rf "$dest_dir"
     mkdir -p "$dest_dir"
     ln -s "$script_dir/$1" "$dest"
 }
@@ -40,8 +40,8 @@ safe_home_symlink() {
     fi
     script_dir=$(dirname "$(readlink -f "$0")")
     echo "Creating symlink to $1 in home directory."
-    rm -rf "~/$1"
-    ln -s "$script_dir/$1" "~/$1"
+    rm -rf "$HOME/$1"
+    ln -s "$script_dir/$1" "$HOME/$1"
 }
 
 safe_dot_symlinks
