@@ -1,0 +1,16 @@
+[user]
+    name = Logan Collins
+    email = logan.collins@vanta.com
+    signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ+yx+fl5zFqQxthOWf15aT/VorlNvEF8vy3sGuSWomv 1P SSH Key
+
+[gpg]
+    format = ssh
+
+[commit]
+    gpgsign = true
+
+[push]
+    default = current
+
+[pull]
+    default = current
