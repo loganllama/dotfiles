@@ -18,13 +18,24 @@ safe_dot_symlinks() {
 }
 
 safe_config_symlink() {
+    # if we proceed with an empty string, then we'd remove ~/.config
+    if [ -z "$1" ]; then
+        echo "Error: argument is empty." >&2
+        return 1
+    fi
     script_dir=$(dirname "$(readlink -f "$0")")
     echo "Creating symlink to $1 in ~/.config/..."
     rm -rf "~/.config/$1"
+    mkdir -p "~/.config/"
     ln -s "$script_dir/$1" "~/.config/$1"
 }
 
 safe_home_symlink() {
+    # if we proceed with an empty string, then we'd remove ~/
+    if [ -z "$1" ]; then
+        echo "Error: argument is empty." >&2
+        return 1
+    fi
     script_dir=$(dirname "$(readlink -f "$0")")
     echo "Creating symlink to $1 in home directory."
     rm -rf "~/$1"
