@@ -57,7 +57,7 @@ safe_home_symlink "bash_additions.sh"
 # the above source was safe because we're not in an interactive session
 # ... honestly we could probably omit the source in bash_additions now but meh
 echo "Updating fzf..."
-sudo apt remove fzf
+sudo apt remove -y fzf
 git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 ~/.fzf/install --xdg --key-bindings --completion --update-rc
 
