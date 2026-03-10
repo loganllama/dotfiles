@@ -6,6 +6,9 @@ shell = ["starship-jj", "--ignore-working-copy", "starship"]
 use_stdin = false
 when = true
 
+[username]
+disabled = true
+
 [hostname]
 disabled = true
 
