@@ -25,9 +25,11 @@ safe_config_symlink() {
     fi
     script_dir=$(dirname "$(readlink -f "$0")")
     echo "Creating symlink to $1 in ~/.config/..."
-    rm -rf "~/.config/$1"
-    mkdir -p "~/.config/"
-    ln -s "$script_dir/$1" "~/.config/$1"
+    dest="~/.config/$1"
+    dest_dir="$(dirname $dest)"
+    [ "$dest_dir" != "~/.config/" ] && rm -rf "$dest_dir"
+    mkdir -p "$dest_dir"
+    ln -s "$script_dir/$1" "$dest"
 }
 
 safe_home_symlink() {
