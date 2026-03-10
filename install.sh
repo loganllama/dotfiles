@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # "standard" install.sh to replicate what it does when install.sh is not present.
-create_symlinks() {
+safe_dot_symlinks() {
     # Get the directory in which this script lives.
     script_dir=$(dirname "$(readlink -f "$0")")
 
     # Get a list of all files in this directory that start with a dot.
-    files=$(find -maxdepth 1 -type f -name "$1")
+    files=$(find -maxdepth 1 -type f -name ".*")
 
     # Create a symbolic link to each file in the home directory.
     for file in $files; do
@@ -17,8 +17,24 @@ create_symlinks() {
     done
 }
 
-create_symlinks ".*"
-create_symlinks "bash_additions.sh"
+safe_config_symlink() {
+    script_dir=$(dirname "$(readlink -f "$0")")
+    echo "Creating symlink to $1 in ~/.config/..."
+    rm -rf "~/.config/$1"
+    ln -s "$script_dir/$1" "~/.config/$1"
+}
+
+safe_home_symlink() {
+    script_dir=$(dirname "$(readlink -f "$0")")
+    echo "Creating symlink to $1 in home directory."
+    rm -rf "~/$1"
+    ln -s "$script_dir/$1" "~/$1"
+}
+
+safe_dot_symlinks
+safe_config_symlink "jj/config.toml"
+safe_config_symlink "starship.toml"
+safe_home_symlink "bash_additions.sh"
 
 echo "Installing ~/bash_additions.sh..."
 echo "[ -f ~/bash_additions.sh ] && . ~/bash_additions.sh" >> ~/.bashrc
