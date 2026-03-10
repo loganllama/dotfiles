@@ -6,7 +6,7 @@ create_symlinks() {
     script_dir=$(dirname "$(readlink -f "$0")")
 
     # Get a list of all files in this directory that start with a dot.
-    files=$(find -maxdepth 1 -type f -name ".*")
+    files=$(find -maxdepth 1 -type f -name "$1")
 
     # Create a symbolic link to each file in the home directory.
     for file in $files; do
@@ -17,7 +17,8 @@ create_symlinks() {
     done
 }
 
-create_symlinks
+create_symlinks ".*"
+create_symlinks "bash_additions.sh"
 
 echo "Installing ~/bash_additions.sh..."
 echo "[ -f ~/bash_additions.sh ] && . ~/bash_additions.sh" >> ~/.bashrc
