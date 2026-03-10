@@ -5,3 +5,15 @@ ignore_timeout = true
 shell = ["starship-jj", "--ignore-working-copy", "starship"]
 use_stdin = false
 when = true
+
+[hostname]
+disabled = true
+
+[package]
+disabled = true
+
+[nodejs]
+disabled = true
+
+[python]
+disabled = true

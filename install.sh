@@ -27,7 +27,7 @@ safe_config_symlink() {
     echo "Creating symlink to $1 in ~/.config/..."
     dest="$HOME/.config/$1"
     dest_dir="$(dirname $dest)"
-    [ "$dest_dir" != "$HOME/.config/" ] && rm -rf "$dest_dir"
+    [ "$dest_dir" != "$HOME/.config" ] && rm -rf "$dest_dir"
     mkdir -p "$dest_dir"
     ln -s "$script_dir/$1" "$dest"
 }
@@ -76,3 +76,4 @@ pathadd "$HOME/.cargo/bin"
 
 echo "Installing Jujutsu..."
 cargo install --locked --bin jj jj-cli
+cargo install starship-jj --locked
