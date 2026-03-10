@@ -45,13 +45,24 @@ safe_home_symlink() {
 }
 
 safe_dot_symlinks
+
 safe_config_symlink "jj/config.toml"
 safe_config_symlink "starship.toml"
+
 safe_home_symlink "bash_additions.sh"
+[ -f ~/bash_additions.sh ] && . ~/bash_additions.sh
+
+# we do this before bash_additions because fzf adds its own source to .bashrc
+# which needs to happen before the bash_additions source so fzf will be in the path
+# the above source was safe because we're not in an interactive session
+# ... honestly we could probably omit the source in bash_additions now but meh
+echo "Updating fzf..."
+sudo apt remove fzf
+git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+~/.fzf/install --xdg --key-bindings --completion --update-rc
 
 echo "Installing ~/bash_additions.sh..."
 echo "[ -f ~/bash_additions.sh ] && . ~/bash_additions.sh" >> ~/.bashrc
-[ -f ~/bash_additions.sh ] && . ~/bash_additions.sh
 
 echo "Installing Claude..."
 curl -fsSL https://claude.ai/install.sh | bash
