@@ -19,3 +19,6 @@ pathadd "$HOME/.yarn/bin"
 eval "$(starship init bash)"
 eval "$(fzf --bash)"
 source <(COMPLETE=bash jj)
+
+alias jjwl='watch -cn 10 "jj --color always log"'
+alias jjws='watch -cn 10 "jj --color always st"'

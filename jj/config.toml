@@ -2,6 +2,7 @@
 
 [ui]
 default-command = "log"
+conflict-marker-style = "git"
 
 [user]
 name = "Logan Collins"
@@ -9,3 +10,22 @@ email = "logan.collins@vanta.com"
 
 [aliases]
 tug = ["bookmark", "move", "--from", "heads(::@- & bookmarks())", "--to", "@-"]
+sync = ["rebase", "-d", "main", "-s", "roots(trunk().. & mine())"]
+
+[revsets]
+# default
+# log = 'present(@) | ancestors(immutable_heads().., 2) | present(trunk())'
+# check if present is useful
+# perhaps immutable_heads could be replaced with trunk, but it might also "lose" my commits when not based on main@origin
+log = 'present(@) | ancestors(immutable_heads().. & mine(), 2) | present(trunk())'
+# an alternative, no visible difference yet
+# log = 'present(@) | ancestors(bookmarks() & mine(), 2) | present(trunk())'
+# another alternative, shows slightly too much of old stuff when force pushing?
+# might be useful because it seems to show when there is ddivergence (e.g., I have not yet force pushed one of my tracked bookmarks)
+# log = 'present(@) | ancestors((immutable_heads().. & mine()) | tracked_remote_bookmarks(), 2) | present(trunk())'
+
+[remotes.origin]
+auto-track-bookmarks = "lc/*"
+
+[templates]
+git_push_bookmark = '"lc/push-" ++ change_id.short()'
