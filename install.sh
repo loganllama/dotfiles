@@ -87,6 +87,14 @@ init_agent_jj_workspaces() {
         }
     fi
 
+    # Track main against origin and align local main with main@origin so
+    # subsequent operations (parking_lot creation, workspace placement,
+    # and `jj sync`) are based on the upstream tip.
+    (cd "$obsidian_dir" && jj bookmark track main --remote=origin) \
+        || echo "Note: 'jj bookmark track main' skipped or already tracked."
+    (cd "$obsidian_dir" && jj bookmark set main -r main@origin --allow-backwards) \
+        || echo "Note: 'jj bookmark set main' skipped or already aligned."
+
     # The parking_lot bookmark is local-only — it doesn't exist in a
     # fresh clone. Create it (plus an empty commit on top of main to
     # anchor it) if missing, without disturbing the current working copy.
@@ -129,6 +137,13 @@ init_agent_jj_workspaces() {
         (cd "$ws_path" && jj edit parking_lot) || \
             echo "Failed to park $ws_name on parking_lot."
     done
+
+    # Rebase the user's mutable stacks onto main. Conflicts here are
+    # normal and expected — the user resolves them as part of normal
+    # work. (`jj sync` is an alias defined in jj/config.toml.)
+    echo "Running 'jj sync' in $obsidian_dir..."
+    (cd "$obsidian_dir" && jj sync) \
+        || echo "Note: 'jj sync' reported issues (likely conflicts to resolve later)."
 }
 
 safe_dot_symlinks
