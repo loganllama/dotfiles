@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__ide__getDiagnostics",
+      "Edit(//workspaces/obsidian-ws/**)",
+      "Write(//workspaces/obsidian-ws/**)",
+      "Bash(jj:*)",
+      "Bash(gh pr:*)",
+      "Bash(EDITOR=\"true\" jj squash:*)",
+      "Bash(xargs ls:*)"
+    ],
+    "deny": [
+      "Bash(jj git:*)"
+    ]
+  }
+}
