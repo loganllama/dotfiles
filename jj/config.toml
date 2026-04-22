@@ -10,7 +10,7 @@ email = "logan.collins@vanta.com"
 
 [aliases]
 tug = ["bookmark", "move", "--from", "heads(::@- & bookmarks())", "--to", "@-"]
-sync = ["rebase", "-d", "main", "-s", "roots(trunk().. & mine())"]
+sync = ["rebase", "-d", "main", "-s", "roots(trunk().. & mine() & mutable())"]
 
 [revsets]
 # default
