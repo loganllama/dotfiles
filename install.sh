@@ -97,8 +97,12 @@ init_agent_jj_workspaces() {
             echo "Failed to create parking_lot commit; skipping workspace setup."
             return 0
         fi
+        # Note: `description()` matches the full description *including*
+        # its trailing newline, so exact-matching with it never works for
+        # non-empty descriptions. `subject()` matches the first line with
+        # the newline stripped, which is what we want.
         if ! (cd "$obsidian_dir" && jj bookmark create parking_lot \
-                -r "description(exact:\"$parking_desc\") & empty()"); then
+                -r "subject(exact:\"$parking_desc\") & empty()"); then
             echo "Failed to create parking_lot bookmark; skipping workspace setup."
             return 0
         fi
