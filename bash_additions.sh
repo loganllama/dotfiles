@@ -20,9 +20,9 @@ eval "$(starship init bash)"
 eval "$(fzf --bash)"
 source <(COMPLETE=bash jj)
 
-alias jjwl='watch -cn 2 "jj --color always log --no-pager"'
+alias jjwl='watch -cn 2 "jj --color always log --no-pager --ignore-working-copy"'
 alias jjws='watch -cn 2 "jj --color always st"'
-alias jjnp='reset && jj log --no-pager'
+alias jjnp='reset && jj log --no-pager --ignore-working-copy'
 
 # --- jj workspace helpers ---
 

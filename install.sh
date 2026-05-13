@@ -185,3 +185,6 @@ cargo install starship-jj --locked
 
 # jj is now on PATH; provision the agent-team workspaces.
 init_agent_jj_workspaces
+
+echo "Installing DD Pup..."
+curl -L https://github.com/DataDog/pup/releases/download/v0.60.0/pup_0.60.0_Linux_x86_64.tar.gz | tar xz && mv pup ~/bin/pup
