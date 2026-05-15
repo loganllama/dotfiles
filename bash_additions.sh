@@ -59,9 +59,9 @@ ws() {
     fi
 }
 
-# wsa cmd...  — run cmd in every ws1-ws9
+# wsa cmd...  — run cmd in every ws1-ws5
 wsa() {
-    for dir in /workspaces/obsidian-ws/ws{1..9}; do
+    for dir in /workspaces/obsidian-ws/ws{1..5}; do
         [[ -d "$dir" ]] || continue
         echo "=== $(basename "$dir") ==="
         (cd "$dir" && "$@")
@@ -69,11 +69,11 @@ wsa() {
 }
 
 # wspark N  — park wsN on the parking_lot bookmark
-# wspark -a  — park every ws1-ws9 on parking_lot
+# wspark -a  — park every ws1-ws5 on parking_lot
 wspark() {
     if [[ "$1" == "-a" ]]; then
         local rc=0
-        for dir in /workspaces/obsidian-ws/ws{1..9}; do
+        for dir in /workspaces/obsidian-ws/ws{1..5}; do
             [[ -d "$dir" ]] || continue
             local name="$(basename "$dir")"
             if _ws_jj "$dir" edit parking_lot; then
@@ -98,7 +98,7 @@ wspark() {
 
 # wsinfo  — one-line summary of each workspace
 wsinfo() {
-    for dir in /workspaces/obsidian-ws/ws{1..9}; do
+    for dir in /workspaces/obsidian-ws/ws{1..5}; do
         [[ -d "$dir" ]] || continue
         local name="$(basename "$dir")"
         local desc="$(_ws_jj "$dir" log -r @ -n1 --no-pager -T 'description.first_line()' 2>/dev/null)"
@@ -110,13 +110,13 @@ wsinfo() {
 _ws_complete() {
     local cur="${COMP_WORDS[1]}"
     if [[ ${COMP_CWORD} -eq 1 ]]; then
-        COMPREPLY=($(compgen -W "1 2 3 4 5 6 7 8 9" -- "$cur"))
+        COMPREPLY=($(compgen -W "1 2 3 4 5" -- "$cur"))
     fi
 }
 _wspark_complete() {
     local cur="${COMP_WORDS[1]}"
     if [[ ${COMP_CWORD} -eq 1 ]]; then
-        COMPREPLY=($(compgen -W "1 2 3 4 5 6 7 8 9 -a" -- "$cur"))
+        COMPREPLY=($(compgen -W "1 2 3 4 5 -a" -- "$cur"))
     fi
 }
 complete -F _ws_complete ws

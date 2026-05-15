@@ -118,7 +118,7 @@ init_agent_jj_workspaces() {
 
     mkdir -p "$ws_parent"
 
-    for i in 1 2 3 4 5 6 7 8 9; do
+    for i in 1 2 3 4 5; do
         local ws_path="$ws_parent/ws$i"
         local ws_name="ws$i"
 
