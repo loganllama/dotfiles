@@ -50,6 +50,26 @@ safe_obsidian_symlink() {
     ln -s "$source_file" "$dest"
 }
 
+# Symlink every script in this repo's bin/ into ~/bin and ensure it is
+# executable. ~/bin is already added to PATH by bash_additions.sh.
+install_bin_scripts() {
+    script_dir=$(dirname "$(readlink -f "$0")")
+    local src_dir="$script_dir/bin"
+    if [ ! -d "$src_dir" ]; then
+        echo "Skipping bin scripts install: $src_dir not found."
+        return 0
+    fi
+    mkdir -p "$HOME/bin"
+    for file in "$src_dir"/*; do
+        [ -f "$file" ] || continue
+        name=$(basename "$file")
+        echo "Installing $name into ~/bin..."
+        chmod +x "$file"
+        rm -rf "$HOME/bin/$name"
+        ln -s "$file" "$HOME/bin/$name"
+    done
+}
+
 safe_home_symlink() {
     # if we proceed with an empty string, then we'd remove ~/
     if [ -z "$1" ]; then
@@ -156,6 +176,8 @@ safe_obsidian_symlink settings.local.json .claude/settings.local.json
 
 safe_home_symlink "bash_additions.sh"
 [ -f ~/bash_additions.sh ] && . ~/bash_additions.sh
+
+install_bin_scripts
 
 # we do this before adding the bash_additions source to bashrc because fzf adds its own source to .bashrc
 # which needs to happen before the bash_additions source so fzf will be in the path
