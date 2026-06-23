@@ -197,11 +197,15 @@ curl -fsSL https://claude.ai/install.sh | bash
 echo "Installing Starship..."
 curl -sS https://starship.rs/install.sh | sh -s -- --yes
 
-echo "Installing rustup..."
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
-pathadd "$HOME/.cargo/bin"
+# for some reason the images now come with rust pre-installed at /usr/local/cargo/bin/rustup
+# so we skip for now...
+#echo "Installing rustup..."
+#curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+#pathadd "$HOME/.cargo/bin"
 
 echo "Installing Jujutsu..."
+# chown needed for the /usr/local/cargo version because its owned by root, so we cant write to it when we install
+sudo chown -R $(whoami) /usr/local/cargo
 cargo install --locked --bin jj jj-cli
 cargo install starship-jj --locked
 
@@ -209,4 +213,6 @@ cargo install starship-jj --locked
 init_agent_jj_workspaces
 
 echo "Installing DD Pup..."
-curl -L https://github.com/DataDog/pup/releases/download/v0.60.0/pup_0.60.0_Linux_x86_64.tar.gz | tar xz && mkdir -p ~/bin && mv pup ~/bin/pup
+pup_tmp="$(mktemp -d)"
+curl -L https://github.com/DataDog/pup/releases/download/v0.60.0/pup_0.60.0_Linux_x86_64.tar.gz | tar xz -C "$pup_tmp" && mkdir -p ~/bin && mv "$pup_tmp/pup" ~/bin/pup
+rm -rf "$pup_tmp"
