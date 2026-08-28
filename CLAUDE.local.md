@@ -38,7 +38,7 @@ cd /workspaces/obsidian-ws/ws1 && jj new <target-revision>
 If the workspace has been parked or idle for a while, regenerate derived files before starting work (use a 10-minute timeout — it can be slow). Do **not** run `just pp` (see "`just pp` in jj workspaces" below); instead use:
 
 ```bash
-cd /workspaces/obsidian-ws/ws1 && yarn install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only
+cd /workspaces/obsidian-ws/ws1 && pnpm install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only
 ```
 
 ### `just pp` in jj workspaces
@@ -48,10 +48,32 @@ Do NOT run `just pp` inside a jj workspace (`/workspaces/obsidian-ws/ws*`). It f
 Instead, run this from the workspace root:
 
 ```bash
-yarn install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only; npx turbo daemon restart
+pnpm install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only; npx turbo daemon restart
 ```
 
 `--continue=dependencies-successful` lets turbo complete every task that doesn't depend on `//#generate-maintainers`. The only output that task produces (`apps/web/src/__generated__/graphql-ownership.ts`) is already committed and doesn't need refreshing for dev work. Skipping the docker / uv / oso-cli steps in `post-pull.sh` is also fine — they're already set up at the container level.
+
+### Git-dependent build steps in jj workspaces
+
+Some build steps shell out to git and therefore fail in a jj workspace, which has no `.git`.
+These failures are pre-existing and unrelated to whatever an agent is changing — ignore them,
+but do not ignore failures in the package actually being modified:
+
+- `//#generate-maintainers` and `@vanta/product-tests`'s `generate-*-maintainers` — shell out to
+  `git ls-files`. Their outputs are committed and don't need refreshing for dev work.
+- `@vanta/code-ownership#build:app` — fails on a native `openssl-sys` build.
+
+`--continue=dependencies-successful` lets everything else complete.
+
+Do not work around these by running `git init` in a workspace: it contradicts the no-git rule
+above, and a stray `.git` risks confusing tooling that keys on repo root discovery.
+
+### Testing that requires the default workspace
+
+Anything an agent genuinely cannot verify from its workspace should be **skipped and reported**,
+not worked around. Once the agent finishes, check its revisions out in the default workspace
+(`/workspaces/obsidian`, which has `.git`) and run the remaining verification there. An agent
+must say plainly what it could not verify rather than claiming a check it did not run.
 
 ### Collecting Agent Work
 
@@ -89,7 +111,9 @@ Conflicts can arise when rebasing workspace revisions onto a main line that has 
 
 Implementation is carried out by three agent roles: **Orchestrator**, **Implementor**, and **Reviewer**. Each role has specific responsibilities, boundaries, and communication protocols.
 
-**Use agent teams, not standalone subagents.** Create a team once with `TeamCreate` at the start of an implementation session. Then spawn Implementor and Reviewer agents onto that team using the `Agent` tool with `team_name` and `name` parameters. This makes them teammates that can message back via `SendMessage`. Do not spawn Implementors or Reviewers as standalone subagents (no `team_name`) — standalone subagents cannot be messaged after creation and cannot ask for clarification. Reuse the same team across batches; do not create a new team for each dispatch.
+**Always spawn Implementors and Reviewers with a `name`.** Use the `Agent` tool and pass `name` (e.g. `impl-r1`, `rev-r1`); the session has a single implicit team, so no team needs to be created and `team_name` is ignored. The name is the address: it makes the agent reachable via `SendMessage` both while it runs and after it finishes, so you can send corrections mid-flight and ask for a report it forgot to send. An agent spawned without a name can only be reached by its raw agent ID, which is far easier to lose track of.
+
+Use `ListAgents` to see who is reachable. Reuse names across batches by spawning a fresh agent with the same name — the newest holder of a name wins.
 
 ### Orchestrator
 
@@ -137,7 +161,7 @@ An Implementor is a worker agent that writes code to fulfill implementation plan
 
 - Your CWD is one jj workspace somewhere like `/workspaces/obsidian-ws/ws1` through `ws9`.
 - This is a full copy of the repo — `turbo`, `jj` all work from here
-- **If you encounter missing generated files, missing modules, or import errors**: run `yarn install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only` in your workspace (10-minute timeout). This regenerates `node_modules`, build artifacts, and generated types. Do NOT run `just pp` — it fails in jj workspaces at `//#generate-maintainers` (see the "`just pp` in jj workspaces" subsection above for why). Do NOT try to copy files from other workspaces or manually regenerate them.
+- **If you encounter missing generated files, missing modules, or import errors**: run `pnpm install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only` in your workspace (10-minute timeout). This regenerates `node_modules`, build artifacts, and generated types. Do NOT run `just pp` — it fails in jj workspaces at `//#generate-maintainers` (see the "`just pp` in jj workspaces" subsection above for why). Do NOT try to copy files from other workspaces or manually regenerate them.
 
 #### Responsibilities
 
@@ -155,7 +179,7 @@ An Implementor is a worker agent that writes code to fulfill implementation plan
 6. **Handle scope issues:**
    - If the issue is too large, implement a meaningful subset and report to the Orchestrator that followup issues are needed, describing what remains.
    - If you discover new work needed, note it in your completion report rather than scope-creeping your current task. The Orchestrator will create the issues.
-7. **Report completion** to the Orchestrator with a summary of:
+7. **Report completion** to the Orchestrator — via `SendMessage`, not as your final output, which the Orchestrator cannot see — with a summary of:
    - What you implemented
    - List of jj revision change-IDs created
    - Whether the issue is fully or partially implemented
@@ -182,7 +206,7 @@ All three must pass before you report completion. If you added or changed GraphQ
 turbo generate-types --output-logs=errors-only         # Regenerate GraphQL/resource types
 ```
 
-If builds fail with missing module errors, run `yarn install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only` in your workspace first (10-minute timeout), then retry. Do NOT run `just pp` — it fails in jj workspaces (see the "`just pp` in jj workspaces" subsection above).
+If builds fail with missing module errors, run `pnpm install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only` in your workspace first (10-minute timeout), then retry. Do NOT run `just pp` — it fails in jj workspaces (see the "`just pp` in jj workspaces" subsection above).
 
 ---
 
@@ -223,7 +247,7 @@ A Reviewer is an agent that evaluates an Implementor's work for quality, correct
    - If only partially implemented, did the Implementor clearly describe what remains and what followup issues are needed?
    - Are the jj revisions well-described and logically organized?
 
-4. **Deliver a verdict:**
+4. **Deliver a verdict** via `SendMessage` to the Orchestrator (not as your final output, which the Orchestrator cannot see):
 
    **PASS** — The implementation is acceptable. Note any minor suggestions (non-blocking).
 
@@ -240,6 +264,13 @@ A Reviewer is an agent that evaluates an Implementor's work for quality, correct
 ---
 
 ## Communication Protocol
+
+**Reports must be sent with `SendMessage`, not written as final output.** An agent's plain
+text output is not visible to the Orchestrator. An agent that ends its turn with a report in
+its output has, from the Orchestrator's perspective, gone idle having said nothing — the work
+is done but unreported, and the Orchestrator has to ask for it. Say this explicitly in every
+dispatch prompt; it is the single most common failure mode in practice.
+
 
 ### Orchestrator → Implementor
 
