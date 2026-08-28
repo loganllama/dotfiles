@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# capn metrics shim — shadows the real `capn` on PATH.
+# Records hit/miss/invalidation stats (Option A: entry-store diff around `ask`)
+# while forwarding stdout, stderr, and exit code byte-for-byte so the agent
+# sees identical behavior. Logs to a central JSONL.
+set -u
+
+REAL="${CAPN_REAL:-/usr/local/share/nvm/versions/node/v22.22.2/bin/capn}"
+LOG="${CAPN_METRICS_LOG:-$HOME/.capn-metrics/metrics.jsonl}"
+mkdir -p "$(dirname "$LOG")"
+
+cmd="${1:-}"
+ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# --- non-ask: passthrough; tap bust/prune invalidation counts from stdout ---
+if [ "$cmd" != "ask" ]; then
+  if [ "$cmd" = "bust" ] || [ "$cmd" = "prune" ]; then
+    out="$("$REAL" "$@")"; code=$?
+    printf '%s\n' "$out"
+    n="$(printf '%s' "$out" | grep -oE '[0-9]+' | head -1)"
+    printf '{"ts":"%s","cmd":"%s","invalidated":%s}\n' "$ts" "$cmd" "${n:-0}" >> "$LOG"
+    exit "$code"
+  fi
+  exec "$REAL" "$@"
+fi
+
+# --- ask: classify via exit code + stderr, count invalidations via store diff ---
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+ENTRIES="$ROOT/.capn/entries"
+
+before="$(ls "$ENTRIES" 2>/dev/null | sort)"
+err="$(mktemp)"
+# stdout flows through untouched; only stderr is captured (then replayed).
+"$REAL" "$@" 2>"$err"; code=$?
+cat "$err" >&2
+after="$(ls "$ENTRIES" 2>/dev/null | sort)"
+removed="$(comm -23 <(printf '%s\n' "$before") <(printf '%s\n' "$after") | grep -c .)"
+
+if [ "$code" -eq 0 ]; then
+  outcome=hit
+elif grep -q '^No charted answer' "$err"; then
+  outcome=miss
+else
+  outcome=error
+fi
+rm -f "$err"
+
+q="$(printf '%s' "${2:-}" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')"
+printf '{"ts":"%s","q":%s,"outcome":"%s","invalidated_this_cycle":%d,"exit":%d}\n' \
+  "$ts" "$q" "$outcome" "$removed" "$code" >> "$LOG"
+
+exit "$code"

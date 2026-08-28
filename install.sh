@@ -216,3 +216,6 @@ echo "Installing DD Pup..."
 pup_tmp="$(mktemp -d)"
 curl -L https://github.com/DataDog/pup/releases/download/v0.60.0/pup_0.60.0_Linux_x86_64.tar.gz | tar xz -C "$pup_tmp" && mkdir -p ~/bin && mv "$pup_tmp/pup" ~/bin/pup
 rm -rf "$pup_tmp"
+
+echo "Installing capn..."
+npm install -g capn-hook@0.2.2

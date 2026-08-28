@@ -15,5 +15,17 @@
     "deny": [
       "Bash(jj git:*)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/env capn context"
+          }
+        ]
+      }
+    ]
   }
 }

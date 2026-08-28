@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""Summarize capn metrics: hit rate + invalidation counts from metrics.jsonl.
+
+Usage: capn-stats [path-to-metrics.jsonl]
+Log path defaults to $CAPN_METRICS_LOG or ~/.capn-metrics/metrics.jsonl.
+"""
+import collections
+import json
+import os
+import sys
+
+log = (
+    sys.argv[1]
+    if len(sys.argv) > 1
+    else os.environ.get("CAPN_METRICS_LOG")
+    or os.path.expanduser("~/.capn-metrics/metrics.jsonl")
+)
+
+try:
+    with open(log) as f:
+        events = [json.loads(line) for line in f if line.strip()]
+except FileNotFoundError:
+    print(f"no metrics log at {log}")
+    sys.exit(0)
+
+asks = [e for e in events if "outcome" in e]
+outcomes = collections.Counter(e["outcome"] for e in asks)
+hits = outcomes.get("hit", 0)
+misses = outcomes.get("miss", 0)
+errors = outcomes.get("error", 0)
+graded = hits + misses  # errors excluded from hit-rate denominator
+
+inval_ask = sum(e.get("invalidated_this_cycle", 0) for e in asks)
+inval_cmd = sum(e.get("invalidated", 0) for e in events if "cmd" in e)
+
+missed = collections.Counter(
+    e.get("q", "") for e in asks if e["outcome"] == "miss"
+)
+
+print(f"capn metrics  ({log})")
+print(f"  events:          {len(events)}")
+print(f"  asks:            {len(asks)}  (hit {hits} / miss {misses} / error {errors})")
+if graded:
+    print(f"  hit rate:        {hits}/{graded} = {100 * hits / graded:.1f}%")
+else:
+    print("  hit rate:        n/a (no gradeable asks yet)")
+print(f"  invalidations:   {inval_ask} during asks + {inval_cmd} via bust/prune = {inval_ask + inval_cmd}")
+
+repeat = [(q, n) for q, n in missed.most_common() if n > 1]
+if repeat:
+    print("  repeatedly missed (chart candidates):")
+    for q, n in repeat[:10]:
+        print(f"    {n}x  {q}")
