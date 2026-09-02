@@ -11,6 +11,13 @@ email = "logan.collins@vanta.com"
 [aliases]
 tug = ["bookmark", "move", "--from", "heads(::@- & bookmarks())", "--to", "@-"]
 sync = ["rebase", "-d", "main", "-s", "roots(trunk().. & mine() & mutable())"]
+tidy = ["abandon", "-r", "tidyable()"]
+tidy-preview = ["log", "-r", "tidyable()"]
+
+[revset-aliases]
+# Empty revisions safe to abandon. Bookmark an empty revision (e.g. parking_lot)
+# to keep it; ~working_copies() covers every workspace's @, not just this one.
+"tidyable()" = 'empty() & mutable() & ~bookmarks() & ~working_copies() & ~merges()'
 
 [revsets]
 # default
