@@ -12,6 +12,7 @@ pathadd() {
 pathadd "$HOME/.cargo/bin"
 pathadd "$HOME/bin"
 pathadd "$HOME/.yarn/bin"
+pathadd "$HOME/go/bin"
 
 # Skip the rest if we are not in an interactive session (e.g., user in shell)
 [[ $- != *i* ]] && return
