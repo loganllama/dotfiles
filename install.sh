@@ -70,6 +70,35 @@ install_bin_scripts() {
     done
 }
 
+# Symlink every skill directory in this repo's claude/skills/ into
+# ~/.claude/skills/. Symlinks the directory rather than its contents so
+# files added inside a skill need no change here.
+install_claude_skills() {
+    script_dir=$(dirname "$(readlink -f "$0")")
+    local src_dir="$script_dir/claude/skills"
+    if [ ! -d "$src_dir" ]; then
+        echo "Skipping Claude skills install: $src_dir not found."
+        return 0
+    fi
+    mkdir -p "$HOME/.claude/skills"
+    for dir in "$src_dir"/*/; do
+        [ -d "$dir" ] || continue
+        name=$(basename "$dir")
+        local dest="$HOME/.claude/skills/$name"
+        # Deliberately not rm -rf: ~/.claude holds live session state, and a
+        # non-symlink here is a hand-written skill rather than a stale install.
+        # Skip it instead of destroying it, and never touch ~/.claude/skills
+        # itself, which would take unmanaged skills with it.
+        if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+            echo "Skipping skill $name: $dest exists and is not a symlink."
+            continue
+        fi
+        echo "Installing Claude skill $name..."
+        rm -f "$dest"
+        ln -s "${dir%/}" "$dest"
+    done
+}
+
 safe_home_symlink() {
     # if we proceed with an empty string, then we'd remove ~/
     if [ -z "$1" ]; then
@@ -193,6 +222,8 @@ echo "[ -f ~/bash_additions.sh ] && . ~/bash_additions.sh" >> ~/.bashrc
 
 echo "Installing Claude..."
 curl -fsSL https://claude.ai/install.sh | bash
+
+install_claude_skills
 
 echo "Installing Starship..."
 curl -sS https://starship.rs/install.sh | sh -s -- --yes
