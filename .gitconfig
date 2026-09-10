@@ -7,7 +7,9 @@
     format = ssh
 
 [commit]
-    gpgsign = true
+    gpgsign = false
+    # SSH credential forwarding is either broken or I never set it up, I don't remember, but it's fine to not use for what is basically just the dotfiles repo
+    # gpgsign = true
 
 [push]
     default = current
