@@ -314,6 +314,26 @@ eq "concurrent picks: no divergent changes" "$(cd "$WS_DEFAULT_PATH" && jj log -
 eq "concurrent picks: parking_lot still clean" "$(parking_clean)" "y"
 
 check "status prints a table" "$WS" status
+st_json="$("$WS" status --json | jq -r '.[] | select(.name=="ws4") | "\(.change) \(.change_prefix)"')"
+read -r st_change st_prefix <<<"$st_json"
+check "status: change_prefix is a non-empty prefix of change" test -n "$st_prefix" -a "${st_change#"$st_prefix"}" != "$st_change"
+st_plain="$("$WS" status)"
+check_not "status: piped output has no color codes" grep -q $'\e' <<<"$st_plain"
+check "status: piped output keeps the full description" grep -q "DND: workspace parking lot" <<<"$st_plain"
+if command -v script >/dev/null 2>&1; then
+    # Give DESCRIPTION 10 columns: ws4's (26 characters) must be cut to fit.
+    st_head="$(head -1 <<<"$st_plain")"
+    st_desc_at="${st_head%%DESCRIPTION*}"
+    st_cols=$((${#st_desc_at} + 10))
+    st_tty="$(script -qc "stty cols $st_cols; '$WS' status" /dev/null 2>/dev/null | tr -d '\r' | sed 's/\x1b\[[0-9;]*m//g')"
+    st_max=0
+    while IFS= read -r st_line; do
+        st_len="$(LC_ALL=C.UTF-8 bash -c 'echo ${#1}' _ "$st_line")"
+        ((st_len <= st_max)) || st_max=$st_len
+    done <<<"$st_tty"
+    check "status: tty output fits the terminal width" test "$st_max" -le "$st_cols"
+    check "status: tty output cuts the description with …" grep -q "…" <<<"$st_tty"
+fi
 check "whoami (human)" sh -c "'$WS' whoami | jq -e '.kind == \"human\"'"
 
 # A registered workspace whose directory is gone is reported, not recreated.

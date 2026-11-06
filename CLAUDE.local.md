@@ -5,7 +5,8 @@
 Never use git commands. This repo uses jj (Jujutsu) for all version control.
 
 - **Snapshot work**: `jj desc -m "message"` to describe, then `jj new` to start a new revision
-- **Never affect remotes**: no push, no force-push, no remote operations unless explicitly asked
+- **Never push**: only I push to remotes. Never run `jj git push` (or any push or force-push), even when a task seems to call for it; tell me the command to run instead. No other remote operations unless explicitly asked.
+- **Bookmark names**: name bookmarks `$BRANCH_PREFIX/<name>` (e.g. `jj bookmark create "$BRANCH_PREFIX/fix-login" -r @-`). `BRANCH_PREFIX` is exported per dev box, so it scopes bookmarks to this box; don't hardcode it or use a bare `<name>`.
 - **View history**: `jj log`, `jj diff`, `jj show`
 - **Rebase**: `jj rebase -r <rev> -d <dest>`, `jj rebase -s <source> -d <dest>` (this latter form is preferable when moving a stack of revisions at once)
 - **Resolve conflicts in a new revision on top**: `jj new <first-conflicted-revision-in-the-stack>`, fix the markers there (or use `jj resolve`), and leave that revision unsquashed for review. A conflict's size isn't knowable before reading it, so default to a reviewable delta even when it turns out to be one line.
@@ -114,6 +115,7 @@ Before using external CLIs, check auth with:
 
 ```bash
 gh auth status
+bk auth status
 acli jira auth status
 pup auth status
 gws auth status
@@ -121,7 +123,9 @@ slack-vanta auth status
 ona whoami
 ```
 
-If one that the task needs isn't authenticated, stop and ask me to log in rather than working around it. For `gws`, suggest `! gws auth login --readonly`. It needs `~/.config/gws/client_secret.json` and `GOOGLE_WORKSPACE_PROJECT_ID` (exported by `bash_additions.sh`), so if login fails because either is missing, tell me which one.
+If one that the task needs isn't authenticated, stop and ask me to log in rather than working around it. For `gws`, suggest `! gws auth login --readonly`. It needs `~/.config/gws/client_secret.json` and `GOOGLE_WORKSPACE_PROJECT_ID` (exported by `bash_additions.sh`), so if login fails because either is missing, tell me which one. Use `gws` for Google Docs, Sheets and Drive (e.g. `gws docs documents get` with `includeTabsContent` to get every tab), not the Google Docs/Drive MCP tools, which usually aren't connected.
+
+obsidian's PR CI runs in GitHub Actions, which triggers Buildkite for a subset of it (the main builds and tests); both are needed for a green PR. The Buildkite part shows on the PR as one rolled-up check (`vanta/buildkite-pr-builds-and-tests/pr`), whose failures you have to dig into in Buildkite itself. Use `bk` (e.g. `bk build view <n>`, `bk build failed-tests <n>`, `bk job log <id>`) for Buildkite builds and logs; the `pr-diagnostics` skill covers the workflow. Read-only: no retries, rebuilds or cancels unless I ask.
 
 Also verify Glean MCP is loaded if the task needs company knowledge search.
 

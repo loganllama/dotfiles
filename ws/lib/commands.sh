@@ -84,6 +84,88 @@ ws_age() {
     else echo "$((s / 86400))d"; fi
 }
 
+# Set variable $1 to $2 cut to at most $3 characters (ending in "…" when
+# cut) and, unless $4 is "nopad", padded with spaces to exactly $3.
+ws_fit() {
+    local -n _out="$1"
+    local s="$2" w="$3"
+    ((w > 0)) || { _out=""; return 0; }
+    ((${#s} <= w)) || s="${s:0:w-1}…"
+    if [[ "${4:-}" == nopad ]]; then _out="$s"; else printf -v _out '%s%*s' "$s" $((w - ${#s})) ''; fi
+}
+
+# The `ws status` table. Columns are sized to their contents, up to the
+# caps below. On a terminal, DESCRIPTION is cut to fit the width and the
+# unique prefix of @ is highlighted the way jj does; piped output is plain
+# and uncut (use --json for scripts).
+ws_status_table() {
+    local LC_ALL=C.UTF-8 # so ${#s} and cuts count characters, not bytes
+    local tty=0 cols=0 color=0
+    if [[ -t 1 ]]; then
+        tty=1
+        cols="$(tput cols 2>/dev/null)" || cols=0
+        [[ -n "${NO_COLOR:-}" ]] || color=1
+    fi
+    local -a heads=(WS STATE HOLDER FOR LABEL AGE '@') caps=(8 11 30 10 24 4 12)
+    local ncol=${#heads[@]}
+    local -a cells=() prefixes=() descs=() widths=() f
+    local row i r n=0
+    for row; do
+        mapfile -t f < <(jq -r '.name, .state, .holder, .assignee, .label, (.acquired_at // ""),
+            .change, .change_prefix, .description, .working_copy' <<<"$row")
+        case "${f[1]}" in
+            stale-busy) f[1]="STALE-busy" ;;
+            stale-idle) f[1]="stale-idle" ;;
+        esac
+        [[ "${f[9]}" == ok ]] || f[8]="(${f[9]} working copy) ${f[8]}"
+        # The table's holder is the short form; --json keeps the long one.
+        [[ -z "${f[2]}" ]] || f[2]="$(ws_holder_desc "$row" short)"
+        cells+=("${f[0]}" "${f[1]}" "${f[2]:--}" "${f[3]:--}" "${f[4]:--}" "$(ws_age "${f[5]}")" "${f[6]}")
+        prefixes+=("${f[7]}") descs+=("${f[8]}")
+        n=$((n + 1))
+    done
+    local used=0
+    for ((i = 0; i < ncol; i++)); do
+        widths[i]=${#heads[i]}
+        for ((r = 0; r < n; r++)); do
+            local c="${cells[r * ncol + i]}"
+            ((${#c} <= widths[i])) || widths[i]=${#c}
+        done
+        ((widths[i] <= caps[i])) || widths[i]=${caps[i]}
+        used=$((used + widths[i] + 1))
+    done
+    # Room left for DESCRIPTION; -1 means unlimited (not a terminal).
+    local room=-1
+    if [[ $tty == 1 && $cols -gt 0 ]]; then
+        room=$((cols - used))
+        ((room >= 0)) || room=0
+    fi
+    local line cell d
+    line=""
+    for ((i = 0; i < ncol; i++)); do
+        ws_fit cell "${heads[i]}" "${widths[i]}"
+        line+="$cell "
+    done
+    d=DESCRIPTION
+    ((room < 0)) || ws_fit d "$d" "$room" nopad
+    printf '%s\n' "${line%% }${d:+ }$d" | sed 's/ *$//'
+    for ((r = 0; r < n; r++)); do
+        line=""
+        for ((i = 0; i < ncol; i++)); do
+            ws_fit cell "${cells[r * ncol + i]}" "${widths[i]}"
+            local p="${prefixes[r]}"
+            if ((i == ncol - 1)) && [[ $color == 1 && -n "$p" && "${cells[r * ncol + i]}" == "$p"* ]]; then
+                # jj's default change-id colors: bold magenta prefix, grey rest.
+                cell=$'\e[1;35m'"$p"$'\e[0;90m'"${cell:${#p}}"$'\e[0m'
+            fi
+            line+="$cell "
+        done
+        d="${descs[r]}"
+        ((room < 0)) || ws_fit d "$d" "$room" nopad
+        printf '%s\n' "$line$d" | sed 's/ *$//'
+    done
+}
+
 cmd_status() {
     local json=0
     case "${1:-}" in
@@ -91,42 +173,28 @@ cmd_status() {
         "") ;;
         *) ws_die "usage: ws status [--json]" ;;
     esac
-    local name dir state lease info change desc wc rows=()
+    local name dir state lease info change prefix desc wc rows=()
     for name in $(ws_existing "${WS_ALL[@]}"); do
         dir="$(ws_path_of "$name")"
         ws_state "$name"
         state="$WS_STATE" lease="${WS_LEASE:-null}"
-        change="" desc="" wc="unreadable"
+        change="" prefix="" desc="" wc="unreadable"
         if info="$(ws_jj_info "$dir")"; then
-            IFS="$WS_SEP" read -r change _ _ _ desc wc <<<"$info"
+            IFS="$WS_SEP" read -r change prefix _ _ _ desc wc <<<"$info"
         fi
         rows+=("$(jq -cn --arg name "$name" --arg path "$dir" --arg state "$state" \
-            --argjson lease "$lease" --arg change "$change" --arg desc "$desc" --arg wc "$wc" \
+            --argjson lease "$lease" --arg change "$change" --arg prefix "$prefix" \
+            --arg desc "$desc" --arg wc "$wc" \
             --arg holder "$( [[ "$lease" == null ]] || ws_holder_desc "$lease")" \
             '{name: $name, path: $path, state: $state, holder: $holder,
               owner: ($lease.owner // null), label: ($lease.label // ""),
               assignee: ($lease.assignee // ""), acquired_at: ($lease.acquired_at // null),
-              change: $change, description: $desc, working_copy: $wc}')")
+              change: $change, change_prefix: $prefix, description: $desc, working_copy: $wc}')")
     done
     if [[ $json == 1 ]]; then
         printf '%s\n' "${rows[@]}" | jq -s .
     else
-        local row
-        printf '%-8s %-11s %-30s %-10s %-24s %-4s %-8s %s\n' \
-            WS STATE HOLDER FOR LABEL AGE '@' DESCRIPTION
-        for row in "${rows[@]}"; do
-            local f=()
-            mapfile -t f < <(jq -r '.name, .state, .holder, .assignee, .label, (.acquired_at // ""),
-                .change, .description, .working_copy' <<<"$row")
-            case "${f[1]}" in
-                stale-busy) f[1]="STALE-busy" ;;
-                stale-idle) f[1]="stale-idle" ;;
-            esac
-            [[ "${f[8]}" == ok ]] || f[7]="(${f[8]} working copy) ${f[7]}"
-            printf '%-8s %-11s %-30.30s %-10.10s %-24.24s %-4s %-8s %s\n' \
-                "${f[0]}" "${f[1]}" "${f[2]:--}" "${f[3]:--}" "${f[4]:--}" \
-                "$(ws_age "${f[5]}")" "${f[6]}" "${f[7]}"
-        done
+        ws_status_table "${rows[@]}"
     fi
     local busy
     busy="$(printf '%s\n' "${rows[@]}" | jq -r 'select(.state == "stale-busy") | .name' | paste -sd' ' -)"

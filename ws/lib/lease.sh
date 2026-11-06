@@ -72,11 +72,13 @@ ws_lease_read() {
 }
 
 # "obsidian-9f (61f6418b)", "human vscode", ...
+# Who holds a lease, for messages: "name (session 1234abcd)". With "short"
+# as $2 (the `ws status` table), "name 1234abcd".
 ws_holder_desc() {
-    jq -r '.owner // {} |
+    jq -r --arg short "${2:-}" '.owner // {} |
         if .kind == "claude" then
             (if (.session_name // "") != "" then .session_name + " " else "" end)
-            + "(session " + ((.session_id // "?")[0:8]) + ")"
+            + ((.session_id // "?")[0:8] | if $short == "short" then . else "(session " + . + ")" end)
         elif .kind == "human" then "human " + (.user // "?")
         else "unknown owner" end' <<<"$1"
 }

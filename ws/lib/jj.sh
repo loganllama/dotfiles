@@ -21,12 +21,13 @@ ws_jj() {
     return "$rc"
 }
 
-# One read of a workspace's @: change id, empty flag, has-description flag,
+# One read of a workspace's @: change id, its shortest unique prefix (what
+# jj highlights), empty flag, has-description flag,
 # local bookmarks (comma-separated), the first description line, and a
 # last field saying how it was read. No stale recovery: `ws status` must
 # not run update-stale in a workspace someone else may be using, so on a
 # stale working copy it reads without snapshotting and says `stale`.
-WS_INFO_TEMPLATE='change_id.short(8) ++ "\x1f" ++ if(empty, "1", "0") ++ "\x1f" ++ if(description, "1", "0") ++ "\x1f" ++ local_bookmarks.map(|b| b.name()).join(",") ++ "\x1f" ++ description.first_line() ++ "\n"'
+WS_INFO_TEMPLATE='change_id.short(8) ++ "\x1f" ++ change_id.shortest().prefix() ++ "\x1f" ++ if(empty, "1", "0") ++ "\x1f" ++ if(description, "1", "0") ++ "\x1f" ++ local_bookmarks.map(|b| b.name()).join(",") ++ "\x1f" ++ description.first_line() ++ "\n"'
 # Fields are split on \x1f, not tab: tab is IFS whitespace, so `read` would
 # merge the empty bookmark/description fields and shift the rest.
 WS_SEP=$'\x1f'
@@ -53,7 +54,7 @@ ws_is_idle() {
     dir="$(ws_path_of "$name")"
     [[ -d "$dir" ]] || return 1
     info="$(ws_jj_info "$dir")" || return 1
-    IFS="$WS_SEP" read -r _ empty has_desc bookmarks _ state <<<"$info"
+    IFS="$WS_SEP" read -r _ _ empty has_desc bookmarks _ state <<<"$info"
     [[ "$state" == ok && "$empty" == 1 ]] || return 1
     if [[ "$name" == default ]]; then
         [[ "$has_desc" == 0 ]]
