@@ -31,8 +31,12 @@ log = 'present(@) | ancestors(immutable_heads().. & mine(), 2) | present(trunk()
 # might be useful because it seems to show when there is ddivergence (e.g., I have not yet force pushed one of my tracked bookmarks)
 # log = 'present(@) | ancestors((immutable_heads().. & mine()) | tracked_remote_bookmarks(), 2) | present(trunk())'
 
+# Fallbacks only. install.sh writes conf.d/instance.toml, which overrides
+# both to track/push this box's lc/<id>/* bookmarks. The fallback tracks
+# only shared single-segment lc/<name> bookmarks; jj's glob `*` matches
+# `/`, so without the exclusion every box's lc/<id>/* would be tracked.
 [remotes.origin]
-auto-track-bookmarks = "lc/*"
+auto-track-bookmarks = 'glob:"lc/*" & ~glob:"lc/*/*"'
 
 [templates]
 git_push_bookmark = '"lc/push-" ++ change_id.short()'

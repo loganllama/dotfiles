@@ -4,7 +4,10 @@ export BASH_ADDITIONS_LOADED=1
 
 pathadd() {
     if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
-        echo "Adding $1 to PATH..."
+        # Only announce in interactive shells: this file is also sourced
+        # by non-interactive ones (ssh commands, scp), where stray stdout
+        # output breaks the protocol.
+        [[ $- == *i* ]] && echo "Adding $1 to PATH..."
         PATH="${PATH:+"$PATH:"}$1"
     fi
 }
@@ -14,7 +17,17 @@ pathadd "$HOME/bin"
 pathadd "$HOME/.yarn/bin"
 pathadd "$HOME/go/bin"
 
-export BRANCH_PREFIX="lc/"
+# Per-dev-box ID generated once by install.sh. Bookmarks under lc/<id>/
+# belong to this box. Single-segment lc/<name> bookmarks are shared by
+# every box (see ~/.config/jj/conf.d/instance.toml). No trailing slash:
+# tooling builds branch names as "$BRANCH_PREFIX/<name>".
+if [ -s "$HOME/.config/dev-instance/id" ]; then
+    export DEV_INSTANCE_ID="$(<"$HOME/.config/dev-instance/id")"
+    export BRANCH_PREFIX="lc/$DEV_INSTANCE_ID"
+else
+    unset DEV_INSTANCE_ID
+    export BRANCH_PREFIX="lc"
+fi
 
 # Skip the rest if we are not in an interactive session (e.g., user in shell)
 [[ $- != *i* ]] && return

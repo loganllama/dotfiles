@@ -6,6 +6,11 @@ shell = ["starship-jj", "--ignore-working-copy", "starship"]
 use_stdin = false
 when = true
 
+# Dev box ID (exported by bash_additions.sh); hidden when unset.
+[env_var.DEV_INSTANCE_ID]
+format = "[⬢ $env_value]($style) "
+style = "bold purple"
+
 [username]
 disabled = true
 
