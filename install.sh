@@ -296,17 +296,30 @@ install_claude_skills
 echo "Installing Starship..."
 curl -sS https://starship.rs/install.sh | sh -s -- --yes
 
-# for some reason the images now come with rust pre-installed at /usr/local/cargo/bin/rustup
-# so we skip for now...
-#echo "Installing rustup..."
-#curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
-#pathadd "$HOME/.cargo/bin"
+# The devcontainer image ships rustup in ~/.cargo, with the default
+# toolchain pinned to obsidian's rust-toolchain.toml. Leave that default
+# alone: obsidian's Rust builds depend on it.
 
-echo "Installing Jujutsu..."
-# chown needed for the /usr/local/cargo version because its owned by root, so we cant write to it when we install
-sudo chown -R $(whoami) /usr/local/cargo
-cargo install --locked --bin jj jj-cli
-cargo install starship-jj --locked
+# jj comes from the prebuilt release binary, not `cargo install`. New jj
+# releases often raise their MSRV past the image's pinned rustc, and
+# compiling jj from source takes minutes anyway.
+JJ_VERSION="0.46.0"
+echo "Installing Jujutsu v$JJ_VERSION..."
+mkdir -p ~/bin
+jj_tmp="$(mktemp -d)"
+curl -fsSL "https://github.com/jj-vcs/jj/releases/download/v$JJ_VERSION/jj-v$JJ_VERSION-x86_64-unknown-linux-musl.tar.gz" \
+    | tar xz -C "$jj_tmp" ./jj \
+    && mv "$jj_tmp/jj" ~/bin/jj
+rm -rf "$jj_tmp"
+# bash_additions' pathadd skips directories that don't exist yet, so
+# ~/bin may have been skipped when it was sourced above.
+pathadd "$HOME/bin"
+jj --version || echo "Warning: jj install failed."
+
+# starship-jj has no prebuilt Linux binary, so build it with the image's
+# toolchain.
+echo "Installing starship-jj..."
+cargo install --locked starship-jj
 
 # jj is now on PATH; provision the agent-team workspaces.
 init_agent_jj_workspaces
