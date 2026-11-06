@@ -19,9 +19,11 @@ dotfiles for ona environments
   hasn't leased and warns on Bash aimed at one. It does nothing until
   `~/bin/ws-hook` exists.
 * `jj/config.toml`, `starship.toml` — symlinked into `~/.config/`.
-* `CLAUDE.local.md` → `/workspaces/obsidian/CLAUDE.local.md` and
+* `CLAUDE.local.md` → `/workspaces/obsidian/CLAUDE.local.md`,
+  `loganllama_pr_style_guide.local.md` → the same name in `/workspaces/obsidian/`
+  (the PR/commit voice guide `CLAUDE.local.md` points to), and
   `settings.local.json` → `/workspaces/obsidian/.claude/settings.local.json`,
-  both via `safe_obsidian_symlink`.
+  all via `safe_obsidian_symlink`.
 * dotfiles at the repo root (`.gitconfig`, …) are symlinked into `~` by name.
 
 `install.sh` is not fully idempotent — the package installs near the bottom

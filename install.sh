@@ -229,6 +229,7 @@ write_jj_instance_config
 safe_config_symlink "starship.toml"
 
 safe_obsidian_symlink CLAUDE.local.md CLAUDE.local.md
+safe_obsidian_symlink loganllama_pr_style_guide.local.md loganllama_pr_style_guide.local.md
 safe_obsidian_symlink settings.local.json .claude/settings.local.json
 
 safe_home_symlink "bash_additions.sh"

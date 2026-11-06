@@ -129,6 +129,10 @@ Use read-only commands first. Do not create, edit, post, react, assign, tag, req
 
 If a source link cannot be read, say so and ask me for access or pasted context instead of acting from the link alone.
 
+## PR Descriptions and Commit Messages
+
+Before drafting a PR title or description, or a jj revision/commit message, read `/workspaces/obsidian/loganllama_pr_style_guide.local.md` and write in that voice. Every PR needs a Jira ticket: if none is obvious, ask me which one.
+
 ## Work Modes
 
 - **RESEARCH MODE** — Gather context, information, goals. Output: markdown docs as `<foo_bar_plan>.local.md` in the project root.
