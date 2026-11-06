@@ -108,6 +108,27 @@ Conflicts can arise when rebasing workspace revisions onto a main line that has 
 - Resolve any conflicts before continuing work
 - This is expected and normal — not an error condition
 
+## External CLIs and Services
+
+Before using external CLIs, check auth with:
+
+```bash
+gh auth status
+acli jira auth status
+pup auth status
+gws auth status
+slack-vanta auth status
+ona whoami
+```
+
+If one that the task needs isn't authenticated, stop and ask me to log in rather than working around it. For `gws`, suggest `! gws auth login --readonly`. It needs `~/.config/gws/client_secret.json` and `GOOGLE_WORKSPACE_PROJECT_ID` (exported by `bash_additions.sh`), so if login fails because either is missing, tell me which one.
+
+Also verify Glean MCP is loaded if the task needs company knowledge search.
+
+Use read-only commands first. Do not create, edit, post, react, assign, tag, request review, send email, change sharing, edit docs/sheets, change Datadog resources, create/start/stop/delete ONA environments, open ONA ports, or trigger GitHub Actions workflows unless I explicitly ask for that exact write.
+
+If a source link cannot be read, say so and ask me for access or pasted context instead of acting from the link alone.
+
 ## Work Modes
 
 - **RESEARCH MODE** — Gather context, information, goals. Output: markdown docs as `<foo_bar_plan>.local.md` in the project root.

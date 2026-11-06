@@ -278,3 +278,12 @@ rm -rf "$pup_tmp"
 
 echo "Installing capn..."
 npm install -g capn-hook@0.2.2
+
+echo "Installing Google Workspace CLI (gws)..."
+npm install -g @googleworkspace/cli
+# Vanta's OAuth client secret isn't kept in this public repo, so place it by hand.
+# GOOGLE_WORKSPACE_PROJECT_ID is exported in bash_additions.sh.
+if [ ! -s "$HOME/.config/gws/client_secret.json" ]; then
+    echo "Note: $HOME/.config/gws/client_secret.json is missing. Add it, then run 'gws auth login --readonly'."
+    echo "      Setup instructions: https://app.getguru.com/card/iGokqkBT/CLI-Tools-for-Agents#QjekaNzRZuD9"
+fi

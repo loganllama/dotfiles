@@ -29,6 +29,10 @@ else
     export BRANCH_PREFIX="lc"
 fi
 
+# Google Workspace CLI (gws) OAuth project. Exported for non-interactive
+# shells too, so agents running gws pick it up.
+export GOOGLE_WORKSPACE_PROJECT_ID=gws-cli-oauth-496100
+
 # Skip the rest if we are not in an interactive session (e.g., user in shell)
 [[ $- != *i* ]] && return
 
