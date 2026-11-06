@@ -173,12 +173,11 @@ safe_home_symlink() {
     ln -s "$script_dir/$1" "$HOME/$1"
 }
 
-# Create the ws1..ws9 jj workspaces used by parallel agent teams,
-# each parked on the `parking_lot` bookmark. Idempotent: skips any
-# workspace that is already registered with jj.
+# Set up jj in the obsidian checkout and provision the agent workspace
+# pool (ws1..ws5, each parked on the `parking_lot` bookmark, plus the lease
+# dir) via `ws init`. Idempotent: every step skips what already exists.
 init_agent_jj_workspaces() {
     local obsidian_dir="/workspaces/obsidian"
-    local ws_parent="/workspaces/obsidian-ws"
 
     if [ ! -d "$obsidian_dir" ]; then
         echo "Skipping jj workspace init: $obsidian_dir not found."
@@ -206,48 +205,12 @@ init_agent_jj_workspaces() {
     (cd "$obsidian_dir" && jj bookmark set main -r main@origin --allow-backwards) \
         || echo "Note: 'jj bookmark set main' skipped or already aligned."
 
-    # The parking_lot bookmark is local-only — it doesn't exist in a
-    # fresh clone. Create it (plus an empty commit on top of main to
-    # anchor it) if missing, without disturbing the current working copy.
-    local parking_desc="DND: workspace parking lot"
-    if ! (cd "$obsidian_dir" && jj bookmark list parking_lot 2>/dev/null | grep -q '^parking_lot'); then
-        echo "Creating parking_lot bookmark in $obsidian_dir..."
-        if ! (cd "$obsidian_dir" && jj new main --no-edit -m "$parking_desc"); then
-            echo "Failed to create parking_lot commit; skipping workspace setup."
-            return 0
-        fi
-        # Note: `description()` matches the full description *including*
-        # its trailing newline, so exact-matching with it never works for
-        # non-empty descriptions. `subject()` matches the first line with
-        # the newline stripped, which is what we want.
-        if ! (cd "$obsidian_dir" && jj bookmark create parking_lot \
-                -r "subject(exact:\"$parking_desc\") & empty()"); then
-            echo "Failed to create parking_lot bookmark; skipping workspace setup."
-            return 0
-        fi
-    fi
-
-    mkdir -p "$ws_parent"
-
-    for i in 1 2 3 4 5; do
-        local ws_path="$ws_parent/ws$i"
-        local ws_name="ws$i"
-
-        if (cd "$obsidian_dir" && jj workspace list 2>/dev/null | grep -q "^$ws_name:"); then
-            echo "jj workspace $ws_name already exists, skipping."
-            continue
-        fi
-
-        echo "Creating jj workspace $ws_name at $ws_path..."
-        if ! (cd "$obsidian_dir" && jj workspace add --name "$ws_name" "$ws_path"); then
-            echo "Failed to create workspace $ws_name, continuing."
-            continue
-        fi
-        # Park the new workspace on the parking_lot commit itself so
-        # its working-copy revision shares the parking_lot change-id.
-        (cd "$ws_path" && jj edit parking_lot) || \
-            echo "Failed to park $ws_name on parking_lot."
-    done
+    # The pool itself (parking_lot, ws1..ws5, .leases/) is owned by `ws`,
+    # so the pool list lives in one place (ws/lib/config.sh). Called by its
+    # dotfiles path rather than ~/bin/ws so it doesn't depend on PATH.
+    script_dir=$(dirname "$(readlink -f "$0")")
+    "$script_dir/bin/ws" init \
+        || echo "Note: 'ws init' reported problems; see above. Re-run it after fixing them."
 
     # Rebase the user's mutable stacks onto main. Conflicts here are
     # normal and expected — the user resolves them as part of normal

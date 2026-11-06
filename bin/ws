@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# ws: manage the jj workspace pool (default + ws1-ws5) and the leases that
+# say which Claude session is using which workspace. `ws help` for usage.
+set -euo pipefail
+
+# Resolve through the ~/bin symlink to find the libraries, which live
+# outside bin/ so install_bin_scripts doesn't put them on PATH.
+WS_LIB="$(dirname "$(readlink -f "$0")")/../ws/lib"
+# shellcheck source=ws/lib/config.sh
+. "$WS_LIB/config.sh"
+# shellcheck source=ws/lib/jj.sh
+. "$WS_LIB/jj.sh"
+# shellcheck source=ws/lib/lease.sh
+. "$WS_LIB/lease.sh"
+# shellcheck source=ws/lib/commands.sh
+. "$WS_LIB/commands.sh"
+
+main() {
+    [[ $# -gt 0 ]] || { cmd_help >&2; exit 1; }
+    local cmd="$1"; shift
+    case "$cmd" in
+        help | -h | --help) cmd_help ;;
+        path) cmd_path "$@" ;;
+        all) cmd_all "$@" ;;
+        status) cmd_status "$@" ;;
+        acquire) cmd_acquire "$@" ;;
+        release) cmd_release "$@" ;;
+        adopt) cmd_adopt "$@" ;;
+        prep) cmd_prep "$@" ;;
+        init) cmd_init "$@" ;;
+        whoami) cmd_whoami "$@" ;;
+        *)
+            ws_normalize_id "$cmd" >/dev/null || ws_die "unknown workspace or command '$cmd' (see 'ws help')"
+            if [[ $# -eq 0 ]]; then
+                cmd_path "$cmd"
+            else
+                cmd_run "$cmd" "$@"
+            fi
+            ;;
+    esac
+}
+
+main "$@"

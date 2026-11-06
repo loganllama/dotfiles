@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+# Claude Code PreToolUse hook for workspace leases (see `ws help`).
+# Edit/Write/NotebookEdit into a workspace this session doesn't hold is
+# denied; Bash aimed at one gets a warning. Reads the hook JSON on stdin.
+#
+# This guards against sessions colliding; it isn't a security boundary.
+# So it fails open: on any internal error it exits 0 with nothing on
+# stdout, and never exits 2 (which would block the call).
+set -Eeuo pipefail
+trap 'echo "ws-hook: internal error at line $LINENO; allowing the call" >&2; exit 0' ERR
+
+WS_LIB="$(dirname "$(readlink -f "$0")")/../ws/lib"
+# shellcheck source=ws/lib/config.sh
+. "$WS_LIB/config.sh"
+# shellcheck source=ws/lib/lease.sh
+. "$WS_LIB/lease.sh"
+
+# Which pool workspace an absolute path is in, if any. realpath resolves
+# links, so files linked in from ~/dotfiles aren't governed.
+target_of_path() {
+    local p parent def rest first w
+    p="$(realpath -m -- "$1")"
+    parent="$(realpath -m -- "$WS_PARENT")"
+    def="$(realpath -m -- "$WS_DEFAULT_PATH")"
+    if [[ "$p" == "$parent"/* ]]; then
+        rest="${p#"$parent"/}"
+        first="${rest%%/*}"
+        for w in "${WS_POOL[@]}"; do
+            [[ "$w" != "$first" ]] || { echo "$w"; return 0; }
+        done
+    elif [[ "$p" == "$def" || "$p" == "$def"/* ]]; then
+        echo default
+    fi
+    return 0
+}
+
+# Does any simple command in a Bash command line run a state-changing jj
+# subcommand? A heuristic for a warning, so false positives are cheap.
+has_jj_mutation() {
+    local seg i j sub sub2 m
+    local -a toks
+    while IFS= read -r seg; do
+        read -r -a toks <<<"${seg//[()\`\"\']/ }"
+        for ((i = 0; i < ${#toks[@]}; i++)); do
+            [[ "${toks[i]}" == jj || "${toks[i]}" == */jj ]] && break
+        done
+        ((i < ${#toks[@]})) || continue
+        sub="" sub2=""
+        for ((j = i + 1; j < ${#toks[@]}; j++)); do
+            case "${toks[j]}" in
+                -R | --repository | --at-op | --at-operation | --config | --config-file | --color) j=$((j + 1)) ;;
+                -*) ;;
+                *)
+                    if [[ -z "$sub" ]]; then sub="${toks[j]}"; else sub2="${toks[j]}"; break; fi
+                    ;;
+            esac
+        done
+        [[ -n "$sub" ]] || continue
+        for m in "${WS_JJ_MUTATING[@]}"; do
+            [[ "$sub" != "$m" ]] || return 0
+        done
+        for m in "${WS_JJ_MUTATING_SUB[@]}"; do
+            [[ "$sub $sub2" != "$m" ]] || return 0
+        done
+    done < <(sed -e 's/&&/\n/g; s/||/\n/g; s/[;|&]/\n/g' <<<"$1")
+    return 1
+}
+
+# Workspaces a Bash command is aimed at: its cwd, unless it starts with
+# `cd <path> &&` or `ws <id> ...`, plus any pool path written in it.
+bash_targets() {
+    local cmd="$1" cwd="$2" base="$2" re p parent id
+    re='^[[:space:]]*cd[[:space:]]+("([^"]*)"|'"'"'([^'"'"']*)'"'"'|([^[:space:];&|]+))[[:space:]]*(&&|;)'
+    if [[ "$cmd" =~ $re ]]; then
+        p="${BASH_REMATCH[2]}${BASH_REMATCH[3]}${BASH_REMATCH[4]}"
+        # Tilde expansion by hand: these are words from the command, not ours to eval.
+        [[ "$p" != \~ && "$p" != \~/* ]] || p="$HOME${p#\~}"
+        [[ "$p" == /* ]] || p="$cwd/$p"
+        base="$p"
+    fi
+    re='^[[:space:]]*ws[[:space:]]+([^[:space:];&|]+)'
+    if [[ "$cmd" =~ $re ]] && id="$(ws_normalize_id "${BASH_REMATCH[1]}")"; then
+        echo "$id"
+    elif [[ -n "$base" ]]; then
+        target_of_path "$base"
+    fi
+    parent="$(realpath -m -- "$WS_PARENT")"
+    for p in "$WS_PARENT" "$parent"; do
+        # Escape regex metacharacters in the parent path.
+        grep -oE -- "$(sed 's/[][\.*^$+?(){}|/]/\\&/g' <<<"$p")/ws[0-9]+" <<<"$cmd" || true
+    done | sed 's#.*/##' | while IFS= read -r id; do
+        ws_normalize_id "$id" || true
+    done
+}
+
+# Prints "self", "free", or a description of the other holder.
+holder_for() {
+    local lease
+    lease="$(ws_lease_read "$1")" || { echo free; return 0; }
+    if [[ "$(jq -r '.owner.session_id // ""' <<<"$lease")" == "$session_id" ]]; then
+        echo self
+        return 0
+    fi
+    local label assignee out
+    out="$(ws_holder_desc "$lease")"
+    label="$(jq -r '.label // ""' <<<"$lease")"
+    assignee="$(jq -r '.assignee // ""' <<<"$lease")"
+    [[ -z "$label" ]] || out+=", label \"$label\""
+    [[ -z "$assignee" ]] || out+=", for $assignee"
+    echo "$out"
+}
+
+deny() {
+    jq -cn --arg r "$1" '{hookSpecificOutput: {hookEventName: "PreToolUse",
+        permissionDecision: "deny", permissionDecisionReason: $r}}'
+    exit 0
+}
+
+# Never sets permissionDecision: "allow" would skip the user's prompts.
+warn() {
+    jq -cn --arg c "$1" '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $c}}'
+    exit 0
+}
+
+input="$(cat)"
+{
+    IFS= read -r -d '' session_id
+    IFS= read -r -d '' tool
+    IFS= read -r -d '' cwd
+    IFS= read -r -d '' file_path
+    IFS= read -r -d '' command
+} < <(jq -j '(.session_id // ""), "\u0000", (.tool_name // ""), "\u0000", (.cwd // ""), "\u0000",
+    (.tool_input.notebook_path // .tool_input.file_path // ""), "\u0000",
+    (.tool_input.command // ""), "\u0000"' <<<"$input" 2>/dev/null)
+
+# Without a session id there's nothing to compare a lease with.
+[[ -n "$session_id" ]] || exit 0
+
+case "$tool" in
+    Edit | Write | NotebookEdit)
+        [[ -n "$file_path" ]] || exit 0
+        base="${file_path##*/}"
+        for g in "${WS_HOOK_EXEMPT_GLOBS[@]}"; do
+            # shellcheck disable=SC2053 # $g is a glob on purpose
+            [[ "$base" != $g ]] || exit 0
+        done
+        [[ "$file_path" == /* ]] || file_path="$cwd/$file_path"
+        target="$(target_of_path "$file_path")"
+        [[ -n "$target" ]] || exit 0
+        holder="$(holder_for "$target")"
+        [[ "$holder" != self ]] || exit 0
+        path="$(ws_path_of "$target")"
+        if [[ "$holder" == free ]]; then
+            if [[ "$target" == default ]]; then
+                deny "ws-hook: this session holds no lease on default ($path). Run \`ws acquire default --label \"<task>\"\` before your first write there, and \`ws release default\` when done. If you are an Implementor or Reviewer, message the Orchestrator instead. Don't route around this through Bash."
+            fi
+            deny "ws-hook: this session holds no lease on $target ($path). Orchestrator: run \`ws acquire $target --label \"<task>\" --for <agent>\` first. Implementor or Reviewer: don't acquire it yourself; message the Orchestrator. Don't route around this through Bash."
+        fi
+        deny "ws-hook: $target ($path) is leased by $holder, not this session. Don't edit it, and don't route around this through Bash. If you expected to hold it, ask the Orchestrator or the user; \`ws status\` shows whether that owner is still running."
+        ;;
+    Bash)
+        [[ -n "$command" ]] || exit 0
+        msgs=() seen=" "
+        mutates=0
+        if has_jj_mutation "$command"; then mutates=1; fi
+        while IFS= read -r target; do
+            [[ -n "$target" && "$seen" != *" $target "* ]] || continue
+            seen+="$target "
+            holder="$(holder_for "$target")"
+            [[ "$holder" != self ]] || continue
+            # default is read freely; only jj commands that change it matter.
+            [[ "$target" != default || $mutates == 1 ]] || continue
+            if [[ "$holder" == free ]]; then
+                msgs+=("$target isn't leased by this session.")
+            else
+                msgs+=("$target is leased by $holder, not this session.")
+            fi
+        done < <(bash_targets "$command" "$cwd")
+        [[ ${#msgs[@]} -gt 0 ]] || exit 0
+        warn "ws-hook: ${msgs[*]} Don't run jj commands that change a workspace (new, edit, squash, rebase, describe, abandon, restore, commit, split, workspace update-stale, bookmark set/move/create) there without holding its lease (\`ws acquire <id>\`, Orchestrator only). Read-only commands are fine."
+        ;;
+esac
+exit 0

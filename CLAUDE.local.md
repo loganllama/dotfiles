@@ -14,35 +14,36 @@ Never use git commands. This repo uses jj (Jujutsu) for all version control.
 
 ## Agent Teams and jj Workspaces
 
-Parallel agent work uses jj workspaces located at `/workspaces/obsidian-ws/ws1` through `ws9`.
+Parallel agent work uses jj workspaces located at `/workspaces/obsidian-ws/ws1` through `ws5`, managed with the `ws` command (`ws help`). `ws status` shows every workspace's lease and `@`.
 
 ### Rules
 
-1. **Batch agents through existing workspaces** (ws1-ws9). Do not create new workspaces beyond what already exists. (But you may recreate ws1-ws9 if they are removed for some reason.)
+1. **Batch agents through existing workspaces** (ws1-ws5). Do not create new workspaces beyond what already exists. (But you may recreate ws1-ws5 with `ws init` if they are removed for some reason.)
 2. **Reuse workspaces across batches**. When a batch of agents finishes, reuse the same workspaces for the next batch. Do not delete and recreate workspaces.
-3. **Park idle workspaces** on the `parking_lot` bookmark (`cd /workspace/obsidian-ws/ws1 && jj edit parking_lot`) instead of deleting them. The parking_lot revision has description "DND: workspace parking lot".
-4. **Always stop agents before touching their workspaces**. Never remove, park, or reassign a workspace while an agent is still running in it.
-5. **Regenerate derived files in new or stale workspaces** before running tests/lint/typecheck. New workspaces and workspaces that have been idle or rebased onto a significantly different revision need their `node_modules`, build artifacts, and other derived files regenerated. Without this, tests, lint, and builds will fail with missing module errors. Or, worse, some processes will silently pass (like typechecking). **Do NOT use `just pp`** in a jj workspace — it fails at `//#generate-maintainers` (see "`just pp` in jj workspaces" below). Use the replacement command from that subsection.
+3. **Park idle workspaces** with `ws release wsN` (which parks on the `parking_lot` bookmark and drops the lease), not `jj edit parking_lot`, and never delete them.
+4. **Always stop agents before touching their workspaces**. Never remove, park, or reassign a workspace while an agent is still running in it. The lease hook backs this up.
+5. **Regenerate derived files in new or stale workspaces** before running tests/lint/typecheck. New workspaces and workspaces that have been idle or rebased onto a significantly different revision need their `node_modules`, build artifacts, and other derived files regenerated. Without this, tests, lint, and builds will fail with missing module errors. Or, worse, some processes will silently pass (like typechecking). Use `ws prep wsN` (or `--prep` on `ws acquire`). **Do NOT use `just pp`** in a jj workspace — it fails at `//#generate-maintainers` (see "`just pp` in jj workspaces" below).
+
+### Workspace leases
+
+A lease records which Claude session is using which workspace, in `/workspaces/obsidian-ws/.leases/`. Subagents share their parent session's lease. A `PreToolUse` hook denies Edit/Write into a workspace your session doesn't hold, and warns on Bash aimed at one.
+
+- **Start Claude sessions from `/workspaces/obsidian`**, so the lease hook loads.
+- **Orchestrator:** before using ws1-ws5, run `ws acquire [wsN] --label "<task>" --for <agent> [--at <rev>] [--prep]` and use the path it prints. Acquiring ws1-ws5 always starts a new revision on `--at <rev>` (default: `main`): never work on `parking_lot` itself. Acquire never moves `default`. Never pick a workspace from `jj workspace list` or from what looks parked.
+- **Acquire a workspace's lease before running any jj command that changes it** (`new`, `edit`, `squash`, `rebase`, `describe`/`desc`, `abandon`, `restore`, `commit`, `split`, `workspace update-stale`, `bookmark set/move/create`). Read-only jj commands don't need a lease.
+- **`default`** (`/workspaces/obsidian`): read freely. Run `ws acquire default --label "<task>"` just before your first write there (an Edit/Write to a tracked file, or a jj command that changes state), and `ws release default` when done. Acquire never moves default's `@`, and rejects `--at`. `*.local.md` files are exempt.
+- **Park with `ws release wsN`**, not `jj edit parking_lot`.
+- **Never `ws adopt`, `--force` or `ws release --stale` another session's workspace** unless the user explicitly tells you to. A ws1-ws5 lease whose session has died shows as `STALE-busy` (its workspace is never parked, so it can't be reclaimed automatically). It's cleared with `ws adopt <id>` or `ws release <id> --force`: ask the user, and run either one only if they explicitly tell you to.
+- **If the hook denies an edit, don't route around it through Bash.** An Implementor or Reviewer messages the Orchestrator. The Orchestrator acquires, or asks the user.
 
 ### Setting Up a Workspace for an Agent
 
-jj workspace commands must be run from within the workspace directory. There is no `--workspace` flag on `jj edit` or `jj new`.
-
-To point a workspace at a specific revision for agent work:
-
 ```bash
-# If the workspace has been idle, update it first:
-cd /workspaces/obsidian-ws/ws1 && jj workspace update-stale
-
-# Then move it to the target revision:
-cd /workspaces/obsidian-ws/ws1 && jj new <target-revision>
+# Claim a free workspace, start a fresh revision on the target, and regenerate derived files:
+ws acquire --label "<task>" --for <agent-name> --at <target-revision> --prep
 ```
 
-If the workspace has been parked or idle for a while, regenerate derived files before starting work (use a 10-minute timeout — it can be slow). Do **not** run `just pp` (see "`just pp` in jj workspaces" below); instead use:
-
-```bash
-cd /workspaces/obsidian-ws/ws1 && pnpm install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only
-```
+Acquire always runs `jj workspace update-stale` and `jj new` on `--at <target-revision>` (default `main`) in the workspace it hands out. Re-acquiring a workspace you already hold only moves `@` if you pass `--at`. `ws adopt` never moves `@`. `--prep` runs `ws prep` (10-minute timeout — it can be slow); you can also run `ws prep wsN` later. Do **not** run `just pp` (see "`just pp` in jj workspaces" below).
 
 ### `just pp` in jj workspaces
 
@@ -128,7 +129,7 @@ The Orchestrator is the top-level agent. It does not write code directly. It man
 #### Responsibilities
 
 1. **Plan the next unit of work.** Check the in-memory task list or the implementation plan task list. Read the issue details and the relevant sections of plans. Choose issue(s) to assign to the next Implementor.
-2. **Assign a free jj workspace** for the Implementor before dispatching them
+2. **Acquire a workspace** for the Implementor with `ws acquire --for <name> --label "<task>"` before dispatching them, and `ws release` it when the work is collected
 3. **Dispatch an Implementor agent** with a clear prompt containing:
    - The workspace path (their CWD)
    - The implementation plan (if one exists)
@@ -165,9 +166,10 @@ An Implementor is a worker agent that writes code to fulfill implementation plan
 
 #### Setup
 
-- Your CWD is one jj workspace somewhere like `/workspaces/obsidian-ws/ws1` through `ws9`.
+- Your CWD is one jj workspace somewhere like `/workspaces/obsidian-ws/ws1` through `ws5`.
+- Your Orchestrator holds your workspace's lease. Don't acquire or release workspaces yourself.
 - This is a full copy of the repo — `turbo`, `jj` all work from here
-- **If you encounter missing generated files, missing modules, or import errors**: run `pnpm install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only` in your workspace (10-minute timeout). This regenerates `node_modules`, build artifacts, and generated types. Do NOT run `just pp` — it fails in jj workspaces at `//#generate-maintainers` (see the "`just pp` in jj workspaces" subsection above for why). Do NOT try to copy files from other workspaces or manually regenerate them.
+- **If you encounter missing generated files, missing modules, or import errors**: run `ws prep <your workspace>` (10-minute timeout). This regenerates `node_modules`, build artifacts, and generated types. Do NOT run `just pp` — it fails in jj workspaces at `//#generate-maintainers` (see the "`just pp` in jj workspaces" subsection above for why). Do NOT try to copy files from other workspaces or manually regenerate them.
 
 #### Responsibilities
 
@@ -213,7 +215,7 @@ All three must pass before you report completion. If you added or changed GraphQ
 turbo generate-types --output-logs=errors-only         # Regenerate GraphQL/resource types
 ```
 
-If builds fail with missing module errors, run `pnpm install && npx turbo generate-types --continue=dependencies-successful --output-logs=errors-only` in your workspace first (10-minute timeout), then retry. Do NOT run `just pp` — it fails in jj workspaces (see the "`just pp` in jj workspaces" subsection above).
+If builds fail with missing module errors, run `ws prep <your workspace>` first (10-minute timeout), then retry. Do NOT run `just pp` — it fails in jj workspaces (see the "`just pp` in jj workspaces" subsection above).
 
 ---
 
@@ -224,7 +226,8 @@ A Reviewer is an agent that evaluates an Implementor's work for quality, correct
 #### Setup
 
 - You are given a workspace path and issue(s) to review
-- Your CWD is one jj workspace somewhere like `/workspaces/obsidian-ws/ws1` through `ws9`.
+- Your CWD is one jj workspace somewhere like `/workspaces/obsidian-ws/ws1` through `ws5`.
+- Your Orchestrator holds your workspace's lease. Don't acquire or release workspaces yourself.
 - This is a full copy of the repo — `turbo`, `jj` all work from here
 - Read the code changes in the workspace by examining jj revisions
 
@@ -282,7 +285,7 @@ dispatch prompt; it is the single most common failure mode in practice.
 
 Provide in the agent prompt:
 
-- Workspace path: a jj workspace somewhere like `/workspaces/obsidian-ws/ws1` through `ws9`.
+- Workspace path: a jj workspace somewhere like `/workspaces/obsidian-ws/ws1` through `ws5`, acquired with `ws acquire`.
 - Issue to implement
 - Any extra context or constraints not in the issue
 

@@ -10,11 +10,10 @@
       "Bash(jj:*)",
       "Bash(gh pr:*)",
       "Bash(EDITOR=\"true\" jj squash:*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(ws:*)"
     ],
-    "deny": [
-      "Bash(jj git:*)"
-    ]
+    "deny": ["Bash(jj git:*)"]
   },
   "hooks": {
     "SessionStart": [
@@ -23,6 +22,17 @@
           {
             "type": "command",
             "command": "/usr/bin/env capn context"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -x \"$HOME/bin/ws-hook\" ] || \"$HOME/bin/ws-hook\""
           }
         ]
       }
