@@ -14,6 +14,8 @@ pathadd "$HOME/bin"
 pathadd "$HOME/.yarn/bin"
 pathadd "$HOME/go/bin"
 
+export BRANCH_PREFIX="lc/"
+
 # Skip the rest if we are not in an interactive session (e.g., user in shell)
 [[ $- != *i* ]] && return
 
