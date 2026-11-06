@@ -161,6 +161,45 @@ install_bash_additions_in_bashrc() {
     fi
 }
 
+# Write the gws OAuth client file from GWS_CLIENT_SECRET, which the devbox
+# setup provides, so the secret stays out of this public repo. Rewritten on
+# every run so a rotated secret takes effect. The client ID isn't secret.
+# GOOGLE_WORKSPACE_PROJECT_ID is exported in bash_additions.sh.
+write_gws_client_secret() {
+    local dest="$HOME/.config/gws/client_secret.json"
+    if [ -z "$GWS_CLIENT_SECRET" ]; then
+        if [ -s "$dest" ]; then
+            echo "GWS_CLIENT_SECRET not set; keeping existing $dest."
+        else
+            echo "Note: GWS_CLIENT_SECRET is not set, so $dest was not created."
+            echo "      Set it in the devbox setup, or add the file by hand, then run 'gws auth login --readonly'."
+            echo "      Setup instructions: https://app.getguru.com/card/iGokqkBT/CLI-Tools-for-Agents#QjekaNzRZuD9"
+        fi
+        return 0
+    fi
+    echo "Writing $dest from GWS_CLIENT_SECRET..."
+    mkdir -p "$(dirname "$dest")"
+    (
+        umask 077
+        cat >"$dest" <<JSON
+{
+  "installed": {
+    "client_id": "841275341868-64agsblb2oce0rvf6uih75eahlma5hlp.apps.googleusercontent.com",
+    "project_id": "gws-cli-oauth-496100",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_secret": "$GWS_CLIENT_SECRET",
+    "redirect_uris": [
+      "http://localhost"
+    ]
+  }
+}
+JSON
+    )
+    chmod 600 "$dest"
+}
+
 safe_home_symlink() {
     # if we proceed with an empty string, then we'd remove ~/
     if [ -z "$1" ]; then
@@ -282,9 +321,4 @@ npm install -g capn-hook@0.2.2
 
 echo "Installing Google Workspace CLI (gws)..."
 npm install -g @googleworkspace/cli
-# Vanta's OAuth client secret isn't kept in this public repo, so place it by hand.
-# GOOGLE_WORKSPACE_PROJECT_ID is exported in bash_additions.sh.
-if [ ! -s "$HOME/.config/gws/client_secret.json" ]; then
-    echo "Note: $HOME/.config/gws/client_secret.json is missing. Add it, then run 'gws auth login --readonly'."
-    echo "      Setup instructions: https://app.getguru.com/card/iGokqkBT/CLI-Tools-for-Agents#QjekaNzRZuD9"
-fi
+write_gws_client_secret
