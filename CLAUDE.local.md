@@ -8,6 +8,9 @@ Never use git commands. This repo uses jj (Jujutsu) for all version control.
 - **Never affect remotes**: no push, no force-push, no remote operations unless explicitly asked
 - **View history**: `jj log`, `jj diff`, `jj show`
 - **Rebase**: `jj rebase -r <rev> -d <dest>`, `jj rebase -s <source> -d <dest>` (this latter form is preferable when moving a stack of revisions at once)
+- **Resolve conflicts in a new revision on top**: `jj new <first-conflicted-revision-in-the-stack>`, fix the markers there (or use `jj resolve`), and leave that revision unsquashed for review. A conflict's size isn't knowable before reading it, so default to a reviewable delta even when it turns out to be one line.
+- **Conflicted descendants are expected**: revisions above the fix keep their markers until the resolution is squashed into the conflicted revision. That's one conflict awaiting a squash, not many new problems.
+- **Periodic Fetches**: `jj git fetch` runs periodically in the background. Thus the `main` bookmark periodically shifts; revisions we're working on will be based either `main` or a recent ancestor of `main`. This is not a problem. Periodically the user will rebase on `main` before pushing (which is not your concern).
 
 ## Agent Teams and jj Workspaces
 
@@ -84,19 +87,22 @@ After agents complete, their changes are already in jj revisions. Use `jj log`, 
 Conflicts can arise when rebasing workspace revisions onto a main line that has advanced.
 
 **Prevention:**
+
 - Assign non-overlapping issues to concurrent Implementors
 
 **When conflicts occur during rebase:**
+
 1. `jj rebase` will mark conflicting files. Use `jj resolve` or manually edit the conflict markers.
 2. If conflicts are trivial (imports, registration order), the Orchestrator resolves them directly.
 3. If conflicts are substantial (overlapping logic changes), dispatch an Implementor in the workspace to resolve them. The Implementor should:
    - Read both sides of the conflict to understand intent
    - Resolve in favor of preserving both changes where possible
+   - Put the resolution in a new revision on top, per **Version Control: jj (not git)** above
    - Re-run lint, format, typecheck, tests after resolution
-   - Create a new revision on top describing the conflict resolution — do NOT squash into the conflicted parent. The user reviews the delta before squashing.
 4. After resolution, re-run the Reviewer on the resolved state if the fix was non-trivial.
 
 **If an Implementor encounters conflicts in their workspace** (because the main line advanced while they were working):
+
 - Rebase their work onto the latest main: `jj rebase -s <their-first-revision> -d main`
 - Resolve any conflicts before continuing work
 - This is expected and normal — not an error condition
@@ -125,13 +131,13 @@ The Orchestrator is the top-level agent. It does not write code directly. It man
 2. **Assign a free jj workspace** for the Implementor before dispatching them
 3. **Dispatch an Implementor agent** with a clear prompt containing:
    - The workspace path (their CWD)
-   - The implementation plan (if one exists) 
+   - The implementation plan (if one exists)
    - The full issue scope and description they are meant to solve
    - Any additional context or constraints
    - Reference to relevant docs they should read
 4. **When an Implementor completes, always dispatch a Reviewer agent** with:
    - The workspace path to review
-   - The implementation plan (if one exists) 
+   - The implementation plan (if one exists)
    - The full issue scope and description the implementor was meant to solve
    - The Implementor's summary of what they did
 5. **Act on Reviewer feedback:**
@@ -202,6 +208,7 @@ just unit-test <relative-path-to-test-file>            # Run tests for changed/a
 ```
 
 All three must pass before you report completion. If you added or changed GraphQL types, also run:
+
 ```bash
 turbo generate-types --output-logs=errors-only         # Regenerate GraphQL/resource types
 ```
@@ -223,8 +230,8 @@ A Reviewer is an agent that evaluates an Implementor's work for quality, correct
 
 #### Responsibilities
 
-1. **Understand the requirements.** Read the issue details from the Orchestrator's dispatch prompt. 
-2. **Read the relevant design docs.**  If you have questions, check with the Orchestrator about the implementation plan section for your milestone/issues, and any related docs. Understand the design decisions — do not re-debate settled questions. Verify the implementation matches settled design decisions.
+1. **Understand the requirements.** Read the issue details from the Orchestrator's dispatch prompt.
+2. **Read the relevant design docs.** If you have questions, check with the Orchestrator about the implementation plan section for your milestone/issues, and any related docs. Understand the design decisions — do not re-debate settled questions. Verify the implementation matches settled design decisions.
 3. **Review the implementation** by examining the workspace's revisions (`jj log`, `jj diff -r <revision>`). Check:
 
    **Correctness:**
@@ -271,10 +278,10 @@ its output has, from the Orchestrator's perspective, gone idle having said nothi
 is done but unreported, and the Orchestrator has to ask for it. Say this explicitly in every
 dispatch prompt; it is the single most common failure mode in practice.
 
-
 ### Orchestrator → Implementor
 
 Provide in the agent prompt:
+
 - Workspace path: a jj workspace somewhere like `/workspaces/obsidian-ws/ws1` through `ws9`.
 - Issue to implement
 - Any extra context or constraints not in the issue
@@ -282,6 +289,7 @@ Provide in the agent prompt:
 ### Implementor → Orchestrator
 
 Return on completion:
+
 - Summary of what was implemented
 - List of jj revision change-IDs created
 - Whether fully or partially implemented
@@ -293,6 +301,7 @@ If you hit an unexpected issue, need clarification, or can't find information yo
 ### Orchestrator → Reviewer
 
 Provide in the agent prompt:
+
 - Workspace path to review
 - Issue that were implemented
 - The Implementor's completion summary
@@ -301,6 +310,7 @@ Provide in the agent prompt:
 ### Reviewer → Orchestrator
 
 Return:
+
 - **PASS** or **FAIL**
 - List of findings (problems, suggestions, questions)
 - Descriptions of any issues that should be filed for deficiencies (Orchestrator will create them)
@@ -310,6 +320,7 @@ If you hit an unexpected issue, need clarification, or can't find information yo
 ### On Review Failure
 
 The Orchestrator messages the existing Implementor with the Reviewer's findings if they're still active, otherwise dispatches a new Implementor in the same workspace with:
+
 - The Reviewer's failure findings (verbatim)
 - "Fix the following issues identified in review"
 - The cycle repeats until PASS
