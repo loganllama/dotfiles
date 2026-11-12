@@ -441,6 +441,27 @@ eq "ws1 lease is the first acquirer's" "$(lease_field ws1 .owner.session_id)" "g
 human "$WS" release 1 --force >/dev/null 2>&1
 [[ ! -s "$T/y.out" ]] || human "$WS" release "$(basename "$(cat "$T/y.out")")" --force >/dev/null 2>&1
 
+# --- colocated git repo --------------------------------------------------------
+# The real repo is colocated. Workspaces must not be (no git worktree), or a
+# rebase of parking_lot from default leaves their git HEAD stale and the next
+# snapshot in them imports it, moving @ off parking_lot.
+(
+    export WS_DEFAULT_PATH="$T/colo" WS_PARENT="$T/colo-ws"
+    export WS_LEASE_DIR="$T/colo-ws/.leases"
+    jj git init --colocate "$WS_DEFAULT_PATH" >/dev/null 2>&1
+    (cd "$WS_DEFAULT_PATH" && echo hi >f && jj commit -m init && jj bookmark create main -r @-) >/dev/null 2>&1
+    check "colocated: init provisions" "$WS" init
+    check "colocated: ws1 has no .git" test ! -e "$WS_PARENT/ws1/.git"
+    # Advance main and rebase parking_lot onto it from default, like `jj sync`.
+    (cd "$WS_DEFAULT_PATH" && jj new main -m next && echo more >g && jj bookmark set main -r @ \
+        && jj rebase -s parking_lot -d main) >/dev/null 2>&1
+    "$WS" status >/dev/null 2>&1 || true
+    eq "colocated: ws1 still parked after a rebase from default" \
+        "$(at_change "$WS_PARENT/ws1")" "$(parking_change)"
+    echo "$PASS $FAIL" >"$T/colo.counts"
+)
+read -r PASS FAIL <"$T/colo.counts"
+
 echo
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

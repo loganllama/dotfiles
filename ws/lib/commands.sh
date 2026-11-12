@@ -481,7 +481,12 @@ cmd_init() {
             continue
         fi
         ws_msg "Creating jj workspace $name at $dir..."
-        if ! (cd "$WS_DEFAULT_PATH" && jj workspace add --name "$name" "$dir") >&2; then
+        # --no-colocate: a git worktree gives the workspace its own git HEAD,
+        # which only jj commands run in that workspace keep current. Once
+        # `jj sync` in default rebases parking_lot (or an agent's @), the
+        # next jj command there, even ws status's snapshot, imports the
+        # stale HEAD and moves @ to a new commit on the old base.
+        if ! (cd "$WS_DEFAULT_PATH" && jj workspace add --no-colocate --name "$name" "$dir") >&2; then
             ws_msg "Failed to create workspace $name, continuing."
             rc=1
             continue
