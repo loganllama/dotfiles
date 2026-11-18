@@ -259,6 +259,18 @@ init_agent_jj_workspaces() {
         || echo "Note: 'jj sync' reported issues (likely conflicts to resolve later)."
 }
 
+# Ona runs this script on every pod start, not just the first. Its steps
+# aren't built to be rerun, so stop here once a full run has finished.
+# The marker lives in $HOME, which survives restarts, and is written only
+# when the script reaches the end. Delete it or set DOTFILES_FORCE_INSTALL=1
+# to run again.
+INSTALL_MARKER="$HOME/.local/state/dotfiles/installed"
+if [ -e "$INSTALL_MARKER" ] && [ -z "$DOTFILES_FORCE_INSTALL" ]; then
+    echo "dotfiles already installed at $(cat "$INSTALL_MARKER"); skipping."
+    echo "Delete $INSTALL_MARKER or set DOTFILES_FORCE_INSTALL=1 to rerun."
+    exit 0
+fi
+
 safe_dot_symlinks
 
 init_dev_instance_id
@@ -335,3 +347,7 @@ npm install -g capn-hook@0.2.2
 echo "Installing Google Workspace CLI (gws)..."
 npm install -g @googleworkspace/cli
 write_gws_client_secret
+
+mkdir -p "$(dirname "$INSTALL_MARKER")"
+date -u +%Y-%m-%dT%H:%M:%SZ >"$INSTALL_MARKER"
+echo "dotfiles install complete; wrote $INSTALL_MARKER."
